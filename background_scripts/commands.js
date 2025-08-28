@@ -478,6 +478,7 @@ const defaultKeyMappings = {
   "zi": "zoomIn",
   "zo": "zoomOut",
   "z0": "zoomReset",
+  "&": "collapseGroup",
 
   // Marks
   "m": "Marks.activateCreateMode",

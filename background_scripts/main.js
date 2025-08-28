@@ -362,6 +362,51 @@ const BackgroundCommands = {
     chrome.tabs.setZoom(tabId, 0); // setZoom of 0 sets to the tab default.
   },
 
+  async collapseGroup({ tabId }) {
+    const tab = await chrome.tabs.get(tabId);
+    const groupId = tab.groupId;
+
+    if (groupId === -1) return;
+
+    const group = await chrome.tabGroups.get(groupId);
+    if (!group) return;
+
+    // Collapse this group
+    await chrome.tabGroups.update(groupId, { collapsed: true });
+
+    // Get all collapsed groups in this window
+    const collapsedGroups = (await chrome.tabGroups.query({ windowId: tab.windowId }))
+      .filter((g) => g.collapsed)
+      .map((g) => g.id);
+
+    // Get all tabs, but only those NOT in collapsed groups
+    const focusableTabs = (await chrome.tabs.query({ windowId: tab.windowId }))
+      .filter((t) => !collapsedGroups.includes(t.groupId));
+
+    if (focusableTabs.length === 0) {
+      // No visible tabs, spawn a fresh one
+      await chrome.tabs.create({ windowId: tab.windowId, active: true });
+      return;
+    }
+
+    // Find nearest tab to the right
+    let nextTab = focusableTabs.find((t) => t.index > tab.index);
+
+    // If none to the right, go left
+    if (!nextTab) {
+      for (let i = tab.index - 1; i >= 0; i--) {
+        nextTab = focusableTabs.find((t) => t.index === i);
+        if (nextTab) break;
+      }
+    }
+
+    // If still nothing, just pick the first available
+    if (!nextTab) nextTab = focusableTabs[0];
+
+    // Focus it
+    await chrome.tabs.update(nextTab.id, { active: true });
+  },
+
   async nextFrame({ count, tabId }) {
     // We're assuming that these frames are returned in the order that they appear on the page. This
     // seems to be the case empirically. If it's ever needed, we could also sort by frameId.

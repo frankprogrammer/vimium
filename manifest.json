@@ -19,6 +19,7 @@
   "host_permissions": ["<all_urls>"],
   "permissions": [
     "tabs",
+    "tabGroups",
     "bookmarks",
     "history",
     "storage",

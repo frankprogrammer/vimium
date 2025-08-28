@@ -596,6 +596,18 @@ const allCommands = [
   },
 
   //
+  // Tab Groups
+  //
+
+  {
+    name: "collapseGroup",
+    desc: "Collapse the group of the current tab",
+    group: "tab-groups",
+    advanced: true,
+    background: true,
+  },
+
+  //
   // Misc
   //
 
