@@ -600,8 +600,16 @@ const allCommands = [
   //
 
   {
-    name: "collapseGroup",
-    desc: "Collapse the group of the current tab",
+    name: "collapseGroupRight",
+    desc: "Collapse the group of the current tab and focus on tab to the right",
+    group: "tab-groups",
+    advanced: true,
+    background: true,
+  },
+
+  {
+    name: "collapseGroupLeft",
+    desc: "Collapse the group of the current tab and focus on tab to the left",
     group: "tab-groups",
     advanced: true,
     background: true,

@@ -235,6 +235,68 @@ function nextZoomLevel(currentZoom, steps) {
   }
 }
 
+async function collapseGroup({ tabId, registryEntry }) {
+  let isCollapsingRight = true;
+  if (registryEntry.command === "collapseGroupLeft") {
+    isCollapsingRight = false;
+  }
+
+  const tab = await chrome.tabs.get(tabId);
+  const groupId = tab.groupId;
+
+  // Check if tab is in a group.
+  if (groupId === -1) return;
+
+  const group = await chrome.tabGroups.get(groupId);
+  if (!group) return;
+
+  // Collapse this group.
+  await chrome.tabGroups.update(groupId, { collapsed: true });
+
+  // Get all collapsed groups in this window.
+  const collapsedGroups = (await chrome.tabGroups.query({ windowId: tab.windowId }))
+    .filter((g) => g.collapsed)
+    .map((g) => g.id);
+
+  // Get all tabs, but only those NOT in collapsed groups.
+  const focusableTabs = (await chrome.tabs.query({ windowId: tab.windowId }))
+    .filter((t) => !collapsedGroups.includes(t.groupId));
+
+  if (focusableTabs.length === 0) {
+    // No visible tabs, spawn a fresh one.
+    await chrome.tabs.create({ windowId: tab.windowId, active: true });
+    return;
+  }
+
+  let getFocusableTabFirst = isCollapsingRight ? getFocusableTabToRight : getFocusableTabToLeft;
+  let getFocusableTabSecond = isCollapsingRight ? getFocusableTabToLeft : getFocusableTabToRight;
+
+  let nextTab = getFocusableTabFirst(focusableTabs, tab.index);
+
+  if (!nextTab) {
+    nextTab = getFocusableTabSecond(focusableTabs, tab.index);
+  }
+
+  // If still nothing, just pick the first available.
+  if (!nextTab) nextTab = focusableTabs[0];
+
+  // Focus it
+  await chrome.tabs.update(nextTab.id, { active: true });
+}
+
+function getFocusableTabToRight(focusableTabs, startTabIndex) {
+  return focusableTabs.find((t) => t.index > startTabIndex);
+}
+
+function getFocusableTabToLeft(focusableTabs, startTabIndex) {
+  for (let i = startTabIndex - 1; i >= 0; i--) {
+    let tab = focusableTabs.find((t) => t.index === i);
+    if (tab) return tab;
+  }
+
+  return null;
+}
+
 // These are commands which are bound to keystrokes which must be handled by the background page.
 // They are mapped in commands.js.
 const BackgroundCommands = {
@@ -362,50 +424,8 @@ const BackgroundCommands = {
     chrome.tabs.setZoom(tabId, 0); // setZoom of 0 sets to the tab default.
   },
 
-  async collapseGroup({ tabId }) {
-    const tab = await chrome.tabs.get(tabId);
-    const groupId = tab.groupId;
-
-    if (groupId === -1) return;
-
-    const group = await chrome.tabGroups.get(groupId);
-    if (!group) return;
-
-    // Collapse this group
-    await chrome.tabGroups.update(groupId, { collapsed: true });
-
-    // Get all collapsed groups in this window
-    const collapsedGroups = (await chrome.tabGroups.query({ windowId: tab.windowId }))
-      .filter((g) => g.collapsed)
-      .map((g) => g.id);
-
-    // Get all tabs, but only those NOT in collapsed groups
-    const focusableTabs = (await chrome.tabs.query({ windowId: tab.windowId }))
-      .filter((t) => !collapsedGroups.includes(t.groupId));
-
-    if (focusableTabs.length === 0) {
-      // No visible tabs, spawn a fresh one
-      await chrome.tabs.create({ windowId: tab.windowId, active: true });
-      return;
-    }
-
-    // Find nearest tab to the right
-    let nextTab = focusableTabs.find((t) => t.index > tab.index);
-
-    // If none to the right, go left
-    if (!nextTab) {
-      for (let i = tab.index - 1; i >= 0; i--) {
-        nextTab = focusableTabs.find((t) => t.index === i);
-        if (nextTab) break;
-      }
-    }
-
-    // If still nothing, just pick the first available
-    if (!nextTab) nextTab = focusableTabs[0];
-
-    // Focus it
-    await chrome.tabs.update(nextTab.id, { active: true });
-  },
+  collapseGroupRight: collapseGroup,
+  collapseGroupLeft: collapseGroup,
 
   async nextFrame({ count, tabId }) {
     // We're assuming that these frames are returned in the order that they appear on the page. This
